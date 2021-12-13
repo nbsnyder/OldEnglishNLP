@@ -1,9 +1,12 @@
 import mysql.connector
 import numpy as np
 import random
+import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras import layers
 from keras.utils.vis_utils import plot_model
+
+from difflib import SequenceMatcher
 
 connection = mysql.connector.connect(host='localhost', database='oldengli_oea', user='root', password='password')
 
@@ -20,9 +23,6 @@ data = cursor.fetchall()
 cursor.close()
 connection.close()
 
-# Randomize the order of the entries
-random.shuffle(data)
-
 # Remove any entries that are missing a spelling or headword
 data = [x for x in data if x[0] != None and x[1] != None]
 
@@ -33,6 +33,18 @@ data = [[x[0].lower(), x[1].lower()] for x in data]
 unwantedCharacters = set("!?,.:;\'\" []")
 removeUnwantedCharactersFromWord = lambda word : ''.join(char for char in word if char not in unwantedCharacters)
 data = [[removeUnwantedCharactersFromWord(x[0]), x[1]] for x in data]
+
+"""
+# Remove duplicate entries
+dataSet = set()
+for x in data:
+    dataSet.add(','.join(x))
+data = [x.split(',', maxsplit=1) for x in dataSet]
+dataSet.clear()
+"""
+
+# Randomize the order of the entries
+random.shuffle(data)
 
 # Tranform words into character arrays of equal length
 # Each character array's length is extended by adding 0's to the end of it
@@ -59,14 +71,36 @@ headwordsTestingSet = data[validationSetCutoff:, 1, :]
 
 # Make the model
 inputs = keras.Input(shape=(maxWordLength))
-x = layers.Dense(maxWordLength, activation="tanh")(inputs)
-outputs = layers.Dense(maxWordLength, activation="softmax")(x)
+x = layers.Dense(maxWordLength, activation="relu")(inputs)
+x = layers.Dense(maxWordLength * 2, activation="relu")(x)
+outputs = layers.Dense(maxWordLength, activation="relu")(x)
 model = keras.Model(inputs=inputs, outputs=outputs)
 
 # Compile the model
-model.compile(optimizer=keras.optimizers.RMSprop(learning_rate=1e-3), loss=keras.losses.CategoricalCrossentropy())
+model.compile(optimizer=keras.optimizers.Adam(learning_rate=0.005), loss=keras.losses.MeanSquaredError(), metrics=['accuracy'])
 
 plot_model(model, to_file='ModelPlots/LemmatizationModel.png', show_shapes=True, show_layer_names=True)
 
 # Fit the data to the model
-model.fit(data[:, 0, :], data[:, 1, :], batch_size=32, epochs=10)
+model.fit(spellingsTrainingSet, headwordsTrainingSet, validation_data=(spellingsValidationSet, headwordsValidationSet), batch_size=32, epochs=50, verbose=2)
+
+# Evaluate the model
+scores = model.evaluate(spellingsTestingSet, headwordsTestingSet, verbose=2)
+print("\nLoss: %.3f%%\nAccuracy: %.3f%%\n" % (scores[0] * 100, scores[1] * 100))
+
+# Convert model outputs from vectors back into words
+modelOutputToWordList = lambda output : [''.join(chr(char) for char in charArr) for charArr in (output * maxCharValue).astype(np.int32).tolist()] # if char != 0
+modelOutput = model.call(tf.convert_to_tensor(spellingsTestingSet), training=False)
+modelOutputList = modelOutputToWordList(modelOutput.numpy())
+headwordsTestingSetList = modelOutputToWordList(headwordsTestingSet)
+
+averageRatio = 0
+for i in range(len(spellingsTestingSet)):
+    #print("{0} vs. {1}".format(headwordsTestingSetList[i], modelOutputList[i]))
+    ratio = SequenceMatcher(None, headwordsTestingSetList[i], modelOutputList[i]).ratio()
+    averageRatio += ratio
+    print(ratio)
+
+averageRatio = averageRatio / len(spellingsTestingSet)
+
+print("Average ratio: %.3f%%" % (averageRatio * 100))

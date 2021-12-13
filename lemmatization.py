@@ -66,7 +66,7 @@ model = keras.Model(inputs=inputs, outputs=outputs)
 # Compile the model
 model.compile(optimizer=keras.optimizers.RMSprop(learning_rate=1e-3), loss=keras.losses.CategoricalCrossentropy())
 
-plot_model(model, to_file='model_plot.png', show_shapes=True, show_layer_names=True)
+plot_model(model, to_file='ModelPlots/LemmatizationModel.png', show_shapes=True, show_layer_names=True)
 
 # Fit the data to the model
 model.fit(data[:, 0, :], data[:, 1, :], batch_size=32, epochs=10)

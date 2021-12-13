@@ -6,8 +6,6 @@ from tensorflow import keras
 from tensorflow.keras import layers
 from keras.utils.vis_utils import plot_model
 
-from difflib import SequenceMatcher
-
 connection = mysql.connector.connect(host='localhost', database='oldengli_oea', user='root', password='password')
 
 if not connection.is_connected():
@@ -26,22 +24,37 @@ connection.close()
 # Remove any entries that are missing a spelling or headword
 data = [x for x in data if x[0] != None and x[1] != None]
 
+charReplacements = (
+    ("Ä\u0081", "ā"),
+    ("Ä“", 'ē'),
+    ("Ä«", "ī"),
+    ("Å\u008d", "ō"),
+    ("Å«", "ū"),
+    ("È³", "ȳ"),
+    ("Ç£", "ǣ"),
+    ("Ã¦", "æ"),
+    ("Ä\u2039", "ċ"),
+    ("Ä¡", "ġ"),
+    ("Ã¾", "þ"),
+    ('Ã°', 'ð'),
+    ("Ä\u2019", "Ē"),
+    ("Ä\u00a0", "Ġ")
+)
+
+def replaceCharsInWord(word: str):
+    for i in charReplacements:
+        word = word.replace(*i)
+    return word
+
+data = [[replaceCharsInWord(x[0]), replaceCharsInWord(x[1])] for x in data]
+
 # Make all words lowercase
 data = [[x[0].lower(), x[1].lower()] for x in data]
 
 # Remove unwanted characters from the spellings
-unwantedCharacters = set("!?,.:;\'\" []")
+unwantedCharacters = set("!?,.:;\'\" []()")
 removeUnwantedCharactersFromWord = lambda word : ''.join(char for char in word if char not in unwantedCharacters)
-data = [[removeUnwantedCharactersFromWord(x[0]), x[1]] for x in data]
-
-"""
-# Remove duplicate entries
-dataSet = set()
-for x in data:
-    dataSet.add(','.join(x))
-data = [x.split(',', maxsplit=1) for x in dataSet]
-dataSet.clear()
-"""
+data = [[removeUnwantedCharactersFromWord(x[0]), removeUnwantedCharactersFromWord(x[1])] for x in data]
 
 # Randomize the order of the entries
 random.shuffle(data)
@@ -57,7 +70,7 @@ data = np.array(data, dtype=np.float64)
 
 # Normalize data so all values fall within the range [0, 1]
 maxCharValue = np.amax(data)
-data = data / maxCharValue
+data /= maxCharValue
 
 # Split data into training (80%), validation (10%), and testing (10%) sets
 trainingSetCutoff = int(len(data) * 0.8)
@@ -82,25 +95,32 @@ model.compile(optimizer=keras.optimizers.Adam(learning_rate=0.005), loss=keras.l
 plot_model(model, to_file='ModelPlots/LemmatizationModel.png', show_shapes=True, show_layer_names=True)
 
 # Fit the data to the model
-model.fit(spellingsTrainingSet, headwordsTrainingSet, validation_data=(spellingsValidationSet, headwordsValidationSet), batch_size=32, epochs=50, verbose=2)
+model.fit(spellingsTrainingSet, headwordsTrainingSet, validation_data=(spellingsValidationSet, headwordsValidationSet), batch_size=32, epochs=25, verbose=1)
 
 # Evaluate the model
-scores = model.evaluate(spellingsTestingSet, headwordsTestingSet, verbose=2)
+scores = model.evaluate(spellingsTestingSet, headwordsTestingSet, verbose=1)
 print("\nLoss: %.3f%%\nAccuracy: %.3f%%\n" % (scores[0] * 100, scores[1] * 100))
+modelOutput = model.call(tf.convert_to_tensor(spellingsTestingSet), training=False).numpy()
 
-# Convert model outputs from vectors back into words
-modelOutputToWordList = lambda output : [''.join(chr(char) for char in charArr) for charArr in (output * maxCharValue).astype(np.int32).tolist()] # if char != 0
-modelOutput = model.call(tf.convert_to_tensor(spellingsTestingSet), training=False)
-modelOutputList = modelOutputToWordList(modelOutput.numpy())
-headwordsTestingSetList = modelOutputToWordList(headwordsTestingSet)
+outputArrToWord = lambda charArr : ''.join(chr(char) for char in (charArr * maxCharValue).astype(np.int32).tolist())
 
-averageRatio = 0
+minDistance = 10000000
+minDistanceIndex = -1
+averageDistance = 0
 for i in range(len(spellingsTestingSet)):
-    #print("{0} vs. {1}".format(headwordsTestingSetList[i], modelOutputList[i]))
-    ratio = SequenceMatcher(None, headwordsTestingSetList[i], modelOutputList[i]).ratio()
-    averageRatio += ratio
-    print(ratio)
+    diffs = ((headwordsTestingSet[i] - modelOutput[i]) * maxCharValue) ** 2
+    distance = np.sum(diffs)**0.5
+    averageDistance += distance
+    if distance < minDistance:
+        minDistance = distance
+        minDistanceIndex = i
 
-averageRatio = averageRatio / len(spellingsTestingSet)
+print("Result with the minimum distance:")
+print("\n\nSpelling:\t" + outputArrToWord(spellingsTestingSet[minDistanceIndex]))
+print("Headword:\t" + outputArrToWord(headwordsTestingSet[minDistanceIndex]))
+print("Model output:\t" + outputArrToWord(modelOutput[minDistanceIndex]))
+print("Distance:\t%.3f" % (minDistance))
 
-print("Average ratio: %.3f%%" % (averageRatio * 100))
+averageDistance = averageDistance / len(spellingsTestingSet)
+
+print("\n\nAverage distance: %.3f" % (averageDistance))

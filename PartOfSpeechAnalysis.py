@@ -1,12 +1,16 @@
 import mysql.connector
 import numpy as np
 import random
+import tensorflow as tf
 from tensorflow import keras
-from tensorflow.keras import layers
+from keras import layers
+from keras import activations
 from keras.utils.vis_utils import plot_model
 
-connection = mysql.connector.connect(host='localhost', database='oldengli_oea', user='root', password='password')
+import Utils
 
+# Connect to the MySQL server
+connection = mysql.connector.connect(host='localhost', database='oldengli_oea', user='root', password='password')
 if not connection.is_connected():
     print("Error: could not connect to MySQL server")
     exit()
@@ -23,37 +27,37 @@ connection.close()
 # Remove any entries that are missing a headword or part of speech
 data = [x for x in data if x[0] != None and x[1] != None]
 
-# The maximum length of a headword in this dataset
-maxWordLength = 0
-
-# Mappings between parts of speech and integers
-numPartsOfSpeech = 0
-partOfSpeechToInt = dict()
-partsOfSpeechList = list()
-
-for x in data:
-    if x[1] not in partOfSpeechToInt:
-        partOfSpeechToInt[x[1]] = numPartsOfSpeech
-        partsOfSpeechList.append(x[1])
-        numPartsOfSpeech += 1
-    
-    if len(x[0]) > maxWordLength:
-        maxWordLength = len(x[0])
-
 # Randomize the order of the data entries
 random.shuffle(data)
 
+# Split data into a list of headwords and a list of parts of speech
+headwords = [x[0] for x in data]
+partsOfSpeech = [x[1] for x in data]
+
+# Replace certain character sequences in each headword
+headwords = [Utils.replaceCharsInWord(x) for x in headwords]
+
+# Find the maximum length of a headword in this dataset
+maxWordLength = max([len(x) for x in headwords])
+
+# Generate mappings between parts of speech and integers
+numPartsOfSpeech = 0
+partOfSpeechToInt = dict()
+partsOfSpeechList = list()
+for x in partsOfSpeech:
+    if x not in partOfSpeechToInt:
+        partOfSpeechToInt[x] = numPartsOfSpeech
+        partsOfSpeechList.append(x)
+        numPartsOfSpeech += 1
+
 # Change the part of speech strings into their integer representation
-partsOfSpeech = [partOfSpeechToInt[x[1]] for x in data]
+partsOfSpeech = [partOfSpeechToInt[x] for x in partsOfSpeech]
+partsOfSpeech = np.array(partsOfSpeech, dtype=np.uint8)
 
-# Tranform headwords into character arrays of equal length
-# Each character array's length is extended by adding 0's to the end of it
-wordToCharArray = lambda word : [ord(char) for char in word] + ([0] * (maxWordLength - len(word)))
-headwords = [wordToCharArray(x[0]) for x in data]
-
-# Convert headwords and partsOfSpeech to numpy arrays
+# Tranform each headword into a character array of length `maxWordLength`
+# The headword is padded with \0 if the headword is not already of length `maxWordLength`
+headwords = [Utils.wordToCharArray(x, maxWordLength) for x in headwords]
 headwords = np.array(headwords, dtype=np.float64)
-partsOfSpeech = np.array(partsOfSpeech, dtype=np.int64)
 
 # Normalize headwords so all values fall within the range [0, 1]
 maxCharValue = np.amax(headwords)
@@ -71,14 +75,13 @@ partsOfSpeechTestingSet = partsOfSpeech[validationSetCutoff:]
 
 # Make the model
 inputs = keras.Input(shape=(maxWordLength))
-x = layers.Dense(maxWordLength, activation="tanh")(inputs)
-outputs = layers.Dense(1, activation="softmax")(x)
+x = layers.Dense(maxWordLength, activation=activations.tanh)(inputs)
+outputs = layers.Dense(1, activation=activations.softmax)(x)
 model = keras.Model(inputs=inputs, outputs=outputs)
 
-# Compile the model
+# Compile and plot the model
 model.compile(optimizer=keras.optimizers.RMSprop(learning_rate=1e-3), loss=keras.losses.CategoricalCrossentropy())
+plot_model(model, to_file="ModelPlots/PartOfSpeechAnalysisModel.png", show_shapes=True, show_layer_names=True)
 
-plot_model(model, to_file='ModelPlots/PartOfSpeechAnalysisModel.png', show_shapes=True, show_layer_names=True)
-
-# Fit the data to the model
+# Fit the data
 model.fit(headwordsTrainingSet, partsOfSpeechTrainingSet, batch_size=32, epochs=10)

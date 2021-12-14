@@ -59,8 +59,6 @@ def wordStringToVector(word: str, dim: int):
 
     if dim < wordLength:
         raise Exception("dim cannot be lower than the length of the word")
-    elif dim <= 0:
-        raise Exception("dim cannot be less than or equal to 0")
 
     vector = [0] * dim
     for i in range(wordLength):
@@ -73,12 +71,10 @@ def wordStringToVector(word: str, dim: int):
 def intToVector(val: int, dim: int):
     """Transform an integer into a vector of dimension `dim` by setting each value in the vector to 0 except for a value of 1 in the dimension equal to `val` (note: dimensions are 0-indexed)."""
 
-    if dim <= val:
-        raise Exception("dim cannot be less than or equal to val (note: `dim` is the number of dimensions in the resulting array and dimensions are 0-indexed)")
-    elif val < 0:
+    if val < 0:
         raise Exception("val cannot be negative")
-    elif dim <= 0:
-        raise Exception("dim cannot be less than or equal to 0")
+    elif dim <= val:
+        raise Exception("dim cannot be less than or equal to val (note: `dim` is the number of dimensions in the resulting array and dimensions are 0-indexed)")
 
     vector = [0] * dim
     vector[val] = 1
@@ -88,7 +84,8 @@ def intToVector(val: int, dim: int):
 
 
 def noramlizeWordVector(word: np.ndarray, minCharValue: int, maxCharValue: int):
-    """Normalizes a word vector so that all values are within the range [0, 1].
+    """
+    Normalizes a word vector so that all values are within the range [0, 1].
 
     Parameters:
         word (numpy array): The unnormalized vector representation of a word
@@ -104,7 +101,8 @@ def noramlizeWordVector(word: np.ndarray, minCharValue: int, maxCharValue: int):
 
 
 def normalizedWordVectorToString(word: np.ndarray, minCharValue: int, maxCharValue: int):
-    """Returns the string representation of a normalized word vector
+    """
+    Returns the string representation of a normalized word vector
 
     Parameters:
         word (numpy array): The normalized vector representation of a word
@@ -122,7 +120,8 @@ def normalizedWordVectorToString(word: np.ndarray, minCharValue: int, maxCharVal
 
 
 def distanceBetweenVectors(vector1: np.ndarray, vector2: np.ndarray, minCharValue: int, maxCharValue: int):
-    """This function takes in normalized vectors as parameters and returns the Euclidean distance between their unnormalized equivalents.
+    """
+    This function takes in normalized vectors as parameters and returns the Euclidean distance between their unnormalized equivalents.
 
     Parameters:
         vector1 (numpy array): The normalized vector representation of a word
@@ -145,15 +144,15 @@ def distanceBetweenVectors(vector1: np.ndarray, vector2: np.ndarray, minCharValu
 def partOfSpeechVectorToInt(vector: np.ndarray):
     """Converts a part-of-speech vector into its integer representation."""
 
-    maxVal = -1000000000.0
-    maxValIndex = -1
+    if np.size(vector) == 0:
+        raise Exception("vector is empty")
 
-    for i in range(len(vector)):
+    maxVal = vector[0]
+    maxValIndex = 0
+
+    for i in range(1, len(vector)):
         if vector[i] > maxVal:
             maxVal = vector[i]
             maxValIndex = i
     
-    if maxValIndex == -1:
-        raise Exception("Function partOfSpeechVectorToInt: Unknown error occured")
-    else:
-        return maxValIndex
+    return maxValIndex

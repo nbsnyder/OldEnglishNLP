@@ -91,7 +91,6 @@ lengthOfTestingSet = len(headwordsTestingSet)
 
 # Make the model
 model = keras.Sequential([
-    keras.Input(shape=(maxWordLength)),
     keras.layers.Dense(maxWordLength * 2, activation=activations.relu),
     keras.layers.Dense(maxWordLength, activation=activations.relu),
     keras.layers.Dense(numPartsOfSpeech, activation=activations.relu)
@@ -103,14 +102,6 @@ model.compile(
     loss=tf.keras.losses.CategoricalCrossentropy(),
 )
 
-# Make a plot of the model
-plot_model(
-    model,
-    to_file="ModelPlots/PartOfSpeechAnalysisModel.png",
-    show_shapes=True,
-    show_layer_names=True
-)
-
 # Fit the data
 model.fit(
     headwordsTrainingSet,
@@ -118,6 +109,14 @@ model.fit(
     validation_data=(headwordsValidationSet, partsOfSpeechValidationSet),
     batch_size=16,
     epochs=25
+)
+
+# Make a plot of the model
+plot_model(
+    model,
+    to_file="ModelPlots/PartOfSpeechTaggingModel.png",
+    show_shapes=True,
+    show_layer_names=True
 )
 
 

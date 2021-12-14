@@ -1,6 +1,7 @@
 import mysql.connector
 import numpy as np
 import random
+import statistics
 import tensorflow as tf
 from tensorflow import keras
 from keras import layers
@@ -67,7 +68,6 @@ lengthOfTestingSet = len(spellingsTestingSet)
 
 # Make the model
 model = keras.Sequential([
-    keras.Input(shape=(maxWordLength)),
     keras.layers.Dense(maxWordLength * 2, activation=activations.relu),
     keras.layers.Dense(maxWordLength, activation=activations.relu)
 ])
@@ -76,15 +76,6 @@ model = keras.Sequential([
 model.compile(
     optimizer=keras.optimizers.Adam(learning_rate=0.005),
     loss=keras.losses.MeanSquaredError(),
-    metrics=[keras.metrics.Accuracy()]
-)
-
-# Make a plot of the model
-plot_model(
-    model,
-    to_file="ModelPlots/LemmatizationModel.png",
-    show_shapes=True,
-    show_layer_names=True
 )
 
 # Fit the data
@@ -96,28 +87,25 @@ model.fit(
     epochs=25
 )
 
+# Make a plot of the model
+plot_model(
+    model,
+    to_file="ModelPlots/LemmatizationModel.png",
+    show_shapes=True,
+    show_layer_names=True
+)
+
 # Evaluate the model
-scores = model.evaluate(spellingsTestingSet, headwordsTestingSet)
-print("\nAccuracy: %.3f%%\n" % (scores[1] * 100))
 modelOutput = model.call(tf.convert_to_tensor(spellingsTestingSet), training=False).numpy()
 
-
 # Calculate the minimum and average distances between vectors
-minDistance = 1000000000.0
-minDistanceIndex = -1
-averageDistance = 0.0
-for i in range(lengthOfTestingSet):
-    distance = Utils.distanceBetweenVectors(headwordsTestingSet[i], modelOutput[i], minCharValue, maxCharValue)
-    averageDistance += distance
-    if distance < minDistance:
-        minDistance = distance
+distances = [Utils.distanceBetweenVectors(headwordsTestingSet[i], modelOutput[i], minCharValue, maxCharValue) for i in range(lengthOfTestingSet)]
+minDistance = distances[0]
+minDistanceIndex = 0
+for i in range(1, lengthOfTestingSet):
+    if distances[i] < minDistance:
+        minDistance = distances[i]
         minDistanceIndex = i
-averageDistance = averageDistance / lengthOfTestingSet
-
-print("Result with the minimum distance:")
-print("Spelling:\t" + Utils.normalizedWordVectorToString(spellingsTestingSet[minDistanceIndex], minCharValue, maxCharValue))
-print("Headword:\t" + Utils.normalizedWordVectorToString(headwordsTestingSet[minDistanceIndex], minCharValue, maxCharValue))
-print("Model output:\t" + Utils.normalizedWordVectorToString(modelOutput[minDistanceIndex], minCharValue, maxCharValue))
-print("Distance:\t%.3f" % (minDistance))
-
-print("\n\nAverage distance: %.3f" % (averageDistance))
+averageDistance = statistics.mean(distances)
+stdevDistance = statistics.stdev(distances)
+print("\n\nDistance: %.3f +/- %.3f" % (averageDistance, stdevDistance))

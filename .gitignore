@@ -1,3 +1,5 @@
+~*
 *.sql
+*.docx
 .venv/
 __pycache__/

@@ -102,7 +102,7 @@ def noramlizeWordVector(word: np.ndarray, minCharValue: int, maxCharValue: int):
 
 def normalizedWordVectorToString(word: np.ndarray, minCharValue: int, maxCharValue: int):
     """
-    Returns the string representation of a normalized word vector
+    Returns the string representation of a normalized word vector.
 
     Parameters:
         word (numpy array): The normalized vector representation of a word

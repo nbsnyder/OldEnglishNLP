@@ -100,12 +100,6 @@ modelOutput = model.call(tf.convert_to_tensor(spellingsTestingSet), training=Fal
 
 # Calculate the minimum and average distances between vectors
 distances = [Utils.distanceBetweenVectors(headwordsTestingSet[i], modelOutput[i], minCharValue, maxCharValue) for i in range(lengthOfTestingSet)]
-minDistance = distances[0]
-minDistanceIndex = 0
-for i in range(1, lengthOfTestingSet):
-    if distances[i] < minDistance:
-        minDistance = distances[i]
-        minDistanceIndex = i
 averageDistance = statistics.mean(distances)
 stdevDistance = statistics.stdev(distances)
 print("\n\nDistance: %.3f +/- %.3f" % (averageDistance, stdevDistance))
